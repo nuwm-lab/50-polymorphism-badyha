@@ -76,6 +76,91 @@ namespace LabWork
             {
                 Console.WriteLine($"Expected error for null matrix input: param={ex.ParamName}");
             }
+
+            // ---- Інтерактивна демонстрація поліморфізму ----
+            // Користувач обирає, з яким об'єктом працювати, і виклик віртуальних методів
+            // здійснюється через посилання на базовий клас (Vector4).
+            Console.WriteLine("\n========== ІНТЕРАКТИВНА ДЕМОНСТРАЦІЯ ПОЛІМОРФІЗМУ ==========");
+            Console.WriteLine("Оберіть режим роботи:");
+            Console.WriteLine("  1 — Працювати з Vector4 (вектор розмірності 4)");
+            Console.WriteLine("  2 — Працювати з Matrix4x4 (матриця 4x4)");
+            Console.Write("Ваш вибір (1 або 2): ");
+            
+            string userInput = Console.ReadLine() ?? "";
+            char userChoose = userInput.Length > 0 ? userInput[0] : '0';
+
+            // Основна змінна типу базового класу — буде посилання на Vector4 або Matrix4x4
+            Vector4 obj = null;
+
+            if (userChoose == '1')
+            {
+                // Користувач обирає Vector4
+                obj = new Vector4();
+                Console.WriteLine("\n[Вибрано: Vector4]");
+                Console.WriteLine("Введіть 4 числа через пробіл (наприклад: 1.5 -2 3.25 0.75):");
+                string input = Console.ReadLine() ?? "";
+                try
+                {
+                    string[] parts = input.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                    double[] values = new double[4];
+                    for (int i = 0; i < Math.Min(4, parts.Length); i++)
+                    {
+                        if (double.TryParse(parts[i], System.Globalization.CultureInfo.InvariantCulture, out double val))
+                            values[i] = val;
+                    }
+                    obj.SetElements(values);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Помилка під час введення: {ex.Message}");
+                    return;
+                }
+            }
+            else if (userChoose == '2')
+            {
+                // Користувач обирає Matrix4x4
+                obj = new Matrix4x4();
+                Console.WriteLine("\n[Вибрано: Matrix4x4]");
+                Console.WriteLine("Введіть 16 чисел через пробіл (наприклад: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16):");
+                string input = Console.ReadLine() ?? "";
+                try
+                {
+                    string[] parts = input.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                    double[] values = new double[16];
+                    for (int i = 0; i < Math.Min(16, parts.Length); i++)
+                    {
+                        if (double.TryParse(parts[i], System.Globalization.CultureInfo.InvariantCulture, out double val))
+                            values[i] = val;
+                    }
+                    obj.SetElements(values);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Помилка під час введення: {ex.Message}");
+                    return;
+                }
+            }
+            else
+            {
+                Console.WriteLine("Невідомий вибір. Завершення.");
+                return;
+            }
+
+            // На цьому етапі компіляції ми знаємо тільки те, що obj є Vector4 (базовий клас).
+            // Проте на етапі виконання програми об'єкт може бути Vector4 або Matrix4x4.
+            // Виклик віртуальних методів (Print, MaxElement) здійснюється через динамічну диспетчеризацію.
+
+            Console.WriteLine("\n-- Вивід об'єкта (через базовий тип Vector4) --");
+            obj.Print("F2");  // Виклик віртуального методу Print
+
+            Console.WriteLine("\n-- Максимальний елемент (через базовий тип Vector4) --");
+            double maxVal = obj.MaxElement();  // Виклик віртуального методу MaxElement
+            Console.WriteLine($"Макс: {maxVal:F2}");
+
+            Console.WriteLine("\n-- Інформація про об'єкт --");
+            Console.WriteLine($"Тип об'єкта під час виконання: {obj.GetType().Name}");
+            Console.WriteLine("✓ Приклад поліморфізму: метод викликається на об'єкті базового типу,");
+            Console.WriteLine("  але виконується його перевизначена версія з похідного класу (якщо такий вибраний)!");
         }
     }
 
@@ -85,19 +170,15 @@ namespace LabWork
     
     public class Vector4
     {
-    // Розміри як константи, щоб уникнути магічних чисел
-    protected const int VectorSize = 4;
-    protected const int MatrixSize = 16;
-
-        // Приватне поле для збереження елементів вектора
-        private double[] _elements = new double[VectorSize];
+        // Приватне поле, захищений доступ через властивість для похідних класів
+        private double[] _elements = new double[4];
 
         /// <summary>
         /// Надає захищений доступ до елементів як незмінного списку.
         /// Повертається ReadOnlyCollection, щоб уникнути випадкового зовнішнього модифікування внутрішнього масиву.
         /// Похідні класи можуть перевизначити цю властивість при потребі.
         /// </summary>
-    protected virtual ReadOnlyCollection<double> Elements => Array.AsReadOnly(_elements);
+        protected virtual ReadOnlyCollection<double> Elements => Array.AsReadOnly(_elements);
 
         /// <summary>
         /// Індексатор для зручного доступу до елементів вектора (0..3).
@@ -138,42 +219,22 @@ namespace LabWork
         /// Задати елементи вектора (масив повинен мати довжину 4).
         /// Це віртуальний метод: похідні класи можуть перевизначити поведінку.
         /// </summary>
-        /// <summary>
-        /// Встановити елементи. Для сумісності (LSP) метод приймає масив довжини 4 або 16.
-        /// - Якщо довжина 4 — заповнюються елементи вектора.
-        /// - Якщо довжина 16 — за замовчуванням делегується віртуальному обробнику, який
-        ///   може бути перевизначений у похідних класах (наприклад, Matrix4x4).
-        /// </summary>
         public virtual void SetElements(double[] values)
         {
             if (values == null)
+            {
                 throw new ArgumentNullException(nameof(values));
-
-            if (values.Length == VectorSize)
-            {
-                for (int i = 0; i < VectorSize; i++)
-                    _elements[i] = values[i];
-                return;
             }
 
-            if (values.Length == MatrixSize)
+            if (values.Length != 4)
             {
-                // Делегуємо обробку масиву довжини 16 похідному типу, якщо він її підтримує.
-                // За замовчуванням цей метод в базі кидає ArgumentException.
-                HandleMatrixLengthElements(values);
-                return;
+                throw new ArgumentException($"Expected {nameof(values)} to contain exactly 4 elements.", nameof(values));
             }
 
-            throw new ArgumentException($"Expected {nameof(values)} to contain exactly {VectorSize} or {MatrixSize} elements.", nameof(values));
-        }
-
-        /// <summary>
-        /// Обробник для масивів довжини 16. За замовчуванням кидає ArgumentException.
-        /// Matrix4x4 перевизначає цей метод, щоб заповнити свою внутрішню структуру.
-        /// </summary>
-        protected virtual void HandleMatrixLengthElements(double[] values)
-        {
-            throw new ArgumentException($"This instance does not support arrays of length {MatrixSize}.", nameof(values));
+            for (int i = 0; i < 4; i++)
+            {
+                _elements[i] = values[i];
+            }
         }
 
         /// <summary>
@@ -219,7 +280,7 @@ namespace LabWork
     public class Matrix4x4 : Vector4
     {
         // Приватне поле для зберігання елементів матриці (рядково)
-        private double[] _data = new double[MatrixSize];
+        private double[] _data = new double[16];
 
         /// <summary>
         /// Конструктор: ініціалізує матрицю нулями.
@@ -240,17 +301,22 @@ namespace LabWork
         /// Задати елементи матриці з масиву довжини 16 (4x4).
         /// Перевизначає метод бази; контракт для матриці - 16 елементів.
         /// </summary>
-        /// <summary>
-        /// Обробляє масив довжини 16 і заповнює внутрішній масив матриці.
-        /// Це перевизначення обробника з базового класу, який дозволяє LSP-совісну поведінку.
-        /// </summary>
-        protected override void HandleMatrixLengthElements(double[] values)
+        public override void SetElements(double[] values)
         {
-            if (values == null) throw new ArgumentNullException(nameof(values));
-            if (values.Length != MatrixSize) throw new ArgumentException($"Expected {nameof(values)} to contain exactly {MatrixSize} elements (4x4).", nameof(values));
+            if (values == null)
+            {
+                throw new ArgumentNullException(nameof(values));
+            }
 
-            for (int i = 0; i < MatrixSize; i++)
+            if (values.Length != 16)
+            {
+                throw new ArgumentException($"Expected {nameof(values)} to contain exactly 16 elements (4x4).", nameof(values));
+            }
+
+            for (int i = 0; i < 16; i++)
+            {
                 _data[i] = values[i];
+            }
         }
 
         /// <summary>
@@ -287,12 +353,6 @@ namespace LabWork
 
             return max;
         }
-
-        /// <summary>
-        /// Повертає представлення елементів матриці як IReadOnlyList.
-        /// Перевизначає Elements базового класу, щоб відображати 16 значень.
-        /// </summary>
-        protected override ReadOnlyCollection<double> Elements => Array.AsReadOnly(_data);
 
         /// <summary>
         /// Індексатор для лінійного доступу до елементів матриці (0..15).
