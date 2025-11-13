@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.ObjectModel;
 
 namespace LabWork
 {
@@ -29,6 +30,44 @@ namespace LabWork
             Console.WriteLine("Matrix (4x4):");
             mat.Print();
             Console.WriteLine($"Max element in matrix: {mat.MaxElement():F2}");
+
+            // ---- Доповнення: демонстрація поліморфізму та перевірки граничних випадків ----
+            Console.WriteLine("\n-- Поліморфізм: Vector4 reference -> Matrix4x4 instance --");
+            Vector4 poly = new Matrix4x4();
+            try
+            {
+                // Передаємо 16 елементів через посилання базового типу — викличеться перевизначений метод Matrix4x4.SetElements
+                poly.SetElements(new double[] {
+                    1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16
+                });
+                Console.WriteLine("Called SetElements(16) on Vector4 reference to Matrix4x4 -> succeeded and used overridden implementation.");
+                poly.Print();
+                Console.WriteLine($"Max via base reference: {poly.MaxElement():F2}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Polymorphism demo error: {ex.Message}");
+            }
+
+            // Негативні перевірки: неправильна довжина та null
+            Console.WriteLine("\n-- Перевірка граничних випадків --");
+            try
+            {
+                vec.SetElements(new double[] { 1.0, 2.0 });
+            }
+            catch (ArgumentException ex)
+            {
+                Console.WriteLine($"Expected error for wrong-length vector: {ex.Message}");
+            }
+
+            try
+            {
+                mat.SetElements(null);
+            }
+            catch (ArgumentNullException ex)
+            {
+                Console.WriteLine($"Expected error for null matrix input: param={ex.ParamName}");
+            }
         }
     }
 
@@ -42,11 +81,31 @@ namespace LabWork
         private double[] _elements = new double[4];
 
         /// <summary>
-        /// Захищений доступ до внутрішнього масиву (тільки для читання посилання).
-        /// Похідні класи можуть використовувати це для оптимізації, але змінювати
-        /// вміст слід обережно через встановлені контракти методів.
+        /// Надає захищений доступ до елементів як незмінного списку.
+        /// Повертається ReadOnlyCollection, щоб уникнути випадкового зовнішнього модифікування внутрішнього масиву.
+        /// Похідні класи можуть перевизначити цю властивість при потребі.
         /// </summary>
-        protected double[] Elements => _elements;
+        protected virtual ReadOnlyCollection<double> Elements => Array.AsReadOnly(_elements);
+
+        /// <summary>
+        /// Індексатор для зручного доступу до елементів вектора (0..3).
+        /// Підтримує отримання та встановлення значень з базовою валідацією індексу.
+        /// </summary>
+        public virtual double this[int index]
+        {
+            get
+            {
+                if (index < 0 || index >= _elements.Length)
+                    throw new ArgumentOutOfRangeException(nameof(index));
+                return _elements[index];
+            }
+            set
+            {
+                if (index < 0 || index >= _elements.Length)
+                    throw new ArgumentOutOfRangeException(nameof(index));
+                _elements[index] = value;
+            }
+        }
 
         /// <summary>
         /// Конструктор: ініціалізує вектор нулями.
@@ -76,7 +135,7 @@ namespace LabWork
 
             if (values.Length != 4)
             {
-                throw new ArgumentException("Vector must have exactly 4 elements.");
+                throw new ArgumentException($"Expected {nameof(values)} to contain exactly 4 elements.", nameof(values));
             }
 
             for (int i = 0; i < 4; i++)
@@ -93,7 +152,7 @@ namespace LabWork
             for (int i = 0; i < _elements.Length; i++)
             {
                 if (i > 0) Console.Write(", ");
-                Console.Write(_elements[i].ToString(format));
+                Console.Write(this[i].ToString(format));
             }
 
             Console.WriteLine();
@@ -104,12 +163,12 @@ namespace LabWork
         /// </summary>
         public virtual double MaxElement()
         {
-            double max = _elements[0];
+            double max = this[0];
             for (int i = 1; i < _elements.Length; i++)
             {
-                if (_elements[i] > max)
+                if (this[i] > max)
                 {
-                    max = _elements[i];
+                    max = this[i];
                 }
             }
 
@@ -158,7 +217,7 @@ namespace LabWork
 
             if (values.Length != 16)
             {
-                throw new ArgumentException("Matrix must have exactly 16 elements (4x4).");
+                throw new ArgumentException($"Expected {nameof(values)} to contain exactly 16 elements (4x4).", nameof(values));
             }
 
             for (int i = 0; i < 16; i++)
@@ -200,6 +259,24 @@ namespace LabWork
             }
 
             return max;
+        }
+
+        /// <summary>
+        /// Індексатор для лінійного доступу до елементів матриці (0..15).
+        /// Це перевизначення індексатора в базі Vector4.
+        /// </summary>
+        public override double this[int index]
+        {
+            get
+            {
+                if (index < 0 || index >= _data.Length) throw new ArgumentOutOfRangeException(nameof(index));
+                return _data[index];
+            }
+            set
+            {
+                if (index < 0 || index >= _data.Length) throw new ArgumentOutOfRangeException(nameof(index));
+                _data[index] = value;
+            }
         }
     }
 }
