@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.ObjectModel;
+using System.Text;
 
 namespace LabWork
 {
@@ -12,6 +13,13 @@ namespace LabWork
     {
         static void Main(string[] args)
         {
+            // Налаштування консолі для коректного відображення українських символів
+            // Встановлюємо UTF-8 для введення/виведення
+            Console.OutputEncoding = Encoding.UTF8;
+            Console.InputEncoding = Encoding.UTF8;
+
+            // Якщо в PowerShell або консолі досі проблеми з кодуванням, можна також виконати у терміналі: chcp 65001
+
             // Демонстрація роботи класів Vector4 та Matrix4x4
             var vec = new Vector4();
             vec.SetElements(new double[] { 1.5, -2.0, 3.25, 0.75 });
@@ -77,15 +85,19 @@ namespace LabWork
     
     public class Vector4
     {
-        // Приватне поле, захищений доступ через властивість для похідних класів
-        private double[] _elements = new double[4];
+    // Розміри як константи, щоб уникнути магічних чисел
+    protected const int VectorSize = 4;
+    protected const int MatrixSize = 16;
+
+        // Приватне поле для збереження елементів вектора
+        private double[] _elements = new double[VectorSize];
 
         /// <summary>
         /// Надає захищений доступ до елементів як незмінного списку.
         /// Повертається ReadOnlyCollection, щоб уникнути випадкового зовнішнього модифікування внутрішнього масиву.
         /// Похідні класи можуть перевизначити цю властивість при потребі.
         /// </summary>
-        protected virtual ReadOnlyCollection<double> Elements => Array.AsReadOnly(_elements);
+    protected virtual ReadOnlyCollection<double> Elements => Array.AsReadOnly(_elements);
 
         /// <summary>
         /// Індексатор для зручного доступу до елементів вектора (0..3).
@@ -126,22 +138,42 @@ namespace LabWork
         /// Задати елементи вектора (масив повинен мати довжину 4).
         /// Це віртуальний метод: похідні класи можуть перевизначити поведінку.
         /// </summary>
+        /// <summary>
+        /// Встановити елементи. Для сумісності (LSP) метод приймає масив довжини 4 або 16.
+        /// - Якщо довжина 4 — заповнюються елементи вектора.
+        /// - Якщо довжина 16 — за замовчуванням делегується віртуальному обробнику, який
+        ///   може бути перевизначений у похідних класах (наприклад, Matrix4x4).
+        /// </summary>
         public virtual void SetElements(double[] values)
         {
             if (values == null)
-            {
                 throw new ArgumentNullException(nameof(values));
+
+            if (values.Length == VectorSize)
+            {
+                for (int i = 0; i < VectorSize; i++)
+                    _elements[i] = values[i];
+                return;
             }
 
-            if (values.Length != 4)
+            if (values.Length == MatrixSize)
             {
-                throw new ArgumentException($"Expected {nameof(values)} to contain exactly 4 elements.", nameof(values));
+                // Делегуємо обробку масиву довжини 16 похідному типу, якщо він її підтримує.
+                // За замовчуванням цей метод в базі кидає ArgumentException.
+                HandleMatrixLengthElements(values);
+                return;
             }
 
-            for (int i = 0; i < 4; i++)
-            {
-                _elements[i] = values[i];
-            }
+            throw new ArgumentException($"Expected {nameof(values)} to contain exactly {VectorSize} or {MatrixSize} elements.", nameof(values));
+        }
+
+        /// <summary>
+        /// Обробник для масивів довжини 16. За замовчуванням кидає ArgumentException.
+        /// Matrix4x4 перевизначає цей метод, щоб заповнити свою внутрішню структуру.
+        /// </summary>
+        protected virtual void HandleMatrixLengthElements(double[] values)
+        {
+            throw new ArgumentException($"This instance does not support arrays of length {MatrixSize}.", nameof(values));
         }
 
         /// <summary>
@@ -187,7 +219,7 @@ namespace LabWork
     public class Matrix4x4 : Vector4
     {
         // Приватне поле для зберігання елементів матриці (рядково)
-        private double[] _data = new double[16];
+        private double[] _data = new double[MatrixSize];
 
         /// <summary>
         /// Конструктор: ініціалізує матрицю нулями.
@@ -208,22 +240,17 @@ namespace LabWork
         /// Задати елементи матриці з масиву довжини 16 (4x4).
         /// Перевизначає метод бази; контракт для матриці - 16 елементів.
         /// </summary>
-        public override void SetElements(double[] values)
+        /// <summary>
+        /// Обробляє масив довжини 16 і заповнює внутрішній масив матриці.
+        /// Це перевизначення обробника з базового класу, який дозволяє LSP-совісну поведінку.
+        /// </summary>
+        protected override void HandleMatrixLengthElements(double[] values)
         {
-            if (values == null)
-            {
-                throw new ArgumentNullException(nameof(values));
-            }
+            if (values == null) throw new ArgumentNullException(nameof(values));
+            if (values.Length != MatrixSize) throw new ArgumentException($"Expected {nameof(values)} to contain exactly {MatrixSize} elements (4x4).", nameof(values));
 
-            if (values.Length != 16)
-            {
-                throw new ArgumentException($"Expected {nameof(values)} to contain exactly 16 elements (4x4).", nameof(values));
-            }
-
-            for (int i = 0; i < 16; i++)
-            {
+            for (int i = 0; i < MatrixSize; i++)
                 _data[i] = values[i];
-            }
         }
 
         /// <summary>
@@ -260,6 +287,12 @@ namespace LabWork
 
             return max;
         }
+
+        /// <summary>
+        /// Повертає представлення елементів матриці як IReadOnlyList.
+        /// Перевизначає Elements базового класу, щоб відображати 16 значень.
+        /// </summary>
+        protected override ReadOnlyCollection<double> Elements => Array.AsReadOnly(_data);
 
         /// <summary>
         /// Індексатор для лінійного доступу до елементів матриці (0..15).
